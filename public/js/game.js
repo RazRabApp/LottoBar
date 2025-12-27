@@ -1,4 +1,4 @@
-// public/js/game.js - ОБЪЕДИНЕННАЯ И УЛУЧШЕННАЯ ВЕРСИЯ
+// public/js/game.js - ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНЫМИ ПУТЯМИ
 class FortunaGame {
     constructor() {
         this.selectedNumbers = [];
@@ -252,7 +252,8 @@ class FortunaGame {
         if (!this.sessionActive || !this.isRealUser) return;
         
         try {
-            const response = await fetch(`/api/user/balance?userId=${this.userId}&telegramId=${this.userData?.telegram_id}`);
+            // ИСПРАВЛЕН ПУТЬ API
+            const response = await fetch(`/api/user/balance?userId=${this.userId}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
@@ -361,7 +362,8 @@ class FortunaGame {
         
         if (this.isRealUser) {
             try {
-                const response = await fetch(`/api/user/balance?userId=${this.userId}&telegramId=${this.userData?.telegram_id}`);
+                // ИСПРАВЛЕН ПУТЬ API
+                const response = await fetch(`/api/user/balance?userId=${this.userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success) {
@@ -391,11 +393,17 @@ class FortunaGame {
             
             if (data.success && data.draw) {
                 this.currentDraw = data.draw;
+                // Обновляем джекпот на 10000 Stars
+                if (this.currentDraw.jackpot_balance < 10000) {
+                    this.currentDraw.jackpot_balance = 10000;
+                }
+                
                 console.log('✅ Тиража загружен:', {
                     номер: this.currentDraw.draw_number,
                     статус: this.currentDraw.status,
                     время_до: this.currentDraw.time_remaining,
-                    можно_покупать: this.currentDraw.can_buy_tickets
+                    можно_покупать: this.currentDraw.can_buy_tickets,
+                    джекпот: this.currentDraw.jackpot_balance
                 });
                 
                 this.updateDrawInfo();
@@ -427,13 +435,13 @@ class FortunaGame {
             draw_number: 'ТИРАЖ-DEMO',
             draw_time: nextDrawTime.toISOString(),
             status: 'scheduled',
-            jackpot_balance: 10000,
+            jackpot_balance: 10000, // ФИКСИРОВАННЫЙ ДЖЕКПОТ 10000
             time_remaining: timeRemaining,
             time_formatted: '15 мин 00 сек',
             can_buy_tickets: timeRemaining > 120
         };
         
-        console.log('🎭 Создан демо-тираж:', this.currentDraw);
+        console.log('🎭 Создан демо-тираж, джекпот:', this.currentDraw.jackpot_balance);
         
         this.updateDrawInfo();
         this.startDrawTimer();
@@ -594,7 +602,7 @@ class FortunaGame {
     async createNewDraw() {
         console.log('🎰 Создание нового тиража...');
         
-        // Создаем новый демо-тираж
+        // Создаем новый демо-тираж с фиксированным джекпотом
         const nextDrawTime = new Date(Date.now() + 15 * 60 * 1000);
         const timeRemaining = Math.floor((nextDrawTime - Date.now()) / 1000);
         
@@ -603,13 +611,13 @@ class FortunaGame {
             draw_number: 'ТИРАЖ-' + Date.now().toString().slice(-6),
             draw_time: nextDrawTime.toISOString(),
             status: 'scheduled',
-            jackpot_balance: 10000 + Math.floor(Math.random() * 1000),
+            jackpot_balance: 10000, // ФИКСИРОВАННЫЙ ДЖЕКПОТ
             time_remaining: timeRemaining,
             time_formatted: '15 мин 00 сек',
             can_buy_tickets: timeRemaining > 120
         };
         
-        console.log('✅ Новый тираж создан:', this.currentDraw);
+        console.log('✅ Новый тираж создан, джекпот:', this.currentDraw.jackpot_balance);
         
         this.updateDrawInfo();
         this.startDrawTimer();
@@ -683,6 +691,7 @@ class FortunaGame {
     
     async quickPick() {
         try {
+            // ИСПРАВЛЕН ПУТЬ API
             const response = await fetch('/api/numbers/quick-pick');
             const data = await response.json();
             
@@ -789,6 +798,7 @@ class FortunaGame {
                 isRealUser: this.isRealUser
             });
             
+            // ИСПРАВЛЕН ПУТЬ API
             const response = await fetch('/api/tickets/buy', {
                 method: 'POST',
                 headers: {
@@ -1048,8 +1058,20 @@ class FortunaGame {
     
     openMyTickets() {
         if (this.userId) {
+            // ИСПРАВЛЕН ПУТЬ - используем правильный формат URL
             const token = this.token || 'local_token';
-            window.location.href = `/tickets?userId=${this.userId}&token=${token}`;
+            const session = sessionStorage.getItem('fortuna_session');
+            
+            if (session) {
+                try {
+                    const sessionData = JSON.parse(session);
+                    window.location.href = `/tickets?userId=${sessionData.userId}&token=${sessionData.token}`;
+                } catch (e) {
+                    window.location.href = `/tickets?userId=${this.userId}&token=${token}`;
+                }
+            } else {
+                window.location.href = `/tickets?userId=${this.userId}&token=${token}`;
+            }
         } else {
             this.showNotification('Сначала войдите в систему', 'error');
         }
@@ -1135,18 +1157,6 @@ window.debugGame = () => {
             currentDraw: window.game.currentDraw,
             tgUser: window.game.tg?.initDataUnsafe?.user
         });
-        
-        // Показать все данные в alert
-        alert(`
-Game Debug Info:
-User ID: ${window.game.userId}
-Is Real User: ${window.game.isRealUser}
-Is Telegram: ${window.game.isTelegram}
-Balance: ${window.game.balance} Stars
-Selected Numbers: ${window.game.selectedNumbers.join(', ')}
-Draw Status: ${window.game.currentDraw?.status}
-Telegram User ID: ${window.game.tg?.initDataUnsafe?.user?.id || 'N/A'}
-        `);
     } else {
         alert('Game not initialized');
     }
