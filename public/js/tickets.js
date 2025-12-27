@@ -177,7 +177,7 @@ class TicketsManager {
             console.log(`📋 Загрузка билетов, страница: ${this.currentPage}`);
             
             // Строим URL с параметрами
-            let url = `/api/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=20`;
+            let url = `/api/tickets/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=20`;
             
             // Добавляем фильтры если они есть
             if (this.filters.status && this.filters.status !== 'all') {
