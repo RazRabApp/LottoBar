@@ -1,36 +1,37 @@
 {
   "name": "fortuna-lottery",
-  "version": "4.0.0",
-  "description": "Fortuna Lottery Telegram MiniApp - Лотерея 12 из 24",
-  "main": "server/index.js",
+  "version": "5.0.0",
+  "description": "Fortuna Lottery - Telegram Lottery MiniApp с непрерывными тиражами",
+  "main": "server/start-with-migrate.js",
   "scripts": {
     "start": "node server/start-with-migrate.js",
     "dev": "nodemon server/start-with-migrate.js",
+    "worker": "node server/cron-worker.js",
+    "start:all": "concurrently \"npm start\" \"npm run worker\"",
+    "dev:all": "concurrently \"npm run dev\" \"npm run worker\"",
     "migrate": "node server/init-db.js",
-    "scheduler": "node server/cron-worker.js",
-    "render:build": "npm run migrate",
-    "test": "echo \"Tests require database connection\" && exit 0"
+    "test-db": "node server/test-db-query.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
     "express": "^4.18.2",
-    "node-cron": "^3.0.3",
-    "pg": "^8.11.3"
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "crypto": "^1.0.1",
+    "node-cron": "^3.0.2",
+    "concurrently": "^8.2.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
   },
   "keywords": [
-    "telegram",
     "lottery",
-    "12/24",
-    "postgresql",
-    "render"
-  ],
-  "author": "Fortuna Team",
-  "license": "MIT"
+    "telegram",
+    "miniapp",
+    "gaming",
+    "crypto"
+  ]
 }
