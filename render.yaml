@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: fortuna-lottery-api
+    env: node
+    region: frankfurt
+    plan: free
+    rootDir: .  # Корневая директория проекта
+    buildCommand: |
+      echo "🚀 Начинаем сборку Fortuna Lottery API..."
+      npm install
+      echo "🔧 Установка зависимостей завершена"
+      # Миграции выполняются через start-with-migrate.js при запуске
+    startCommand: node server/start-with-migrate.js
+    healthCheckPath: /api/health
+    healthCheckTimeout: 30
+    healthCheckInterval: 60
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Будет настроен вручную в Dashboard
+      - key: DATABASE_URL
+        sync: false  # Используем внешнюю БД Render
+      - key: DRAW_SECRET
+        generateValue: true  # Автогенерация секретного ключа
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+  - type: worker
+    name: fortuna-lottery-scheduler
+    env: node
+    region: frankfurt
+    plan: free
+    rootDir: .  # Та же корневая директория
+    buildCommand: npm install
+    startCommand: node server/cron-worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Используем внешнюю БД Render
+      - key: DRAW_SECRET
+        sync: false  # Будет синхронизирован с web-сервисом
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+databases:
+  - name: fortuna-database
+    databaseName: fortuna_lottery
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "15"
+    # Внешний доступ включен для использования существующей БД
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: "Разрешить доступ отовсюду"
