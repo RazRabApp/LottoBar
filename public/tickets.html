@@ -65,11 +65,21 @@
             flex: 1;
         }
         
+        /* СТАТИСТИКА - ИЗМЕНЕНО ДЛЯ ПРАВИЛЬНОЙ СТРУКТУРЫ */
+        .stats-section {
+            margin-bottom: 24px;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .stats-cards {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 12px;
-            margin-bottom: 24px;
         }
         
         .stat-card {
@@ -98,6 +108,57 @@
             opacity: 0.8;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+        
+        /* Добавляем новый контейнер для детальной статистики */
+        .stats-details {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 15px;
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stats-details h3 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #ffd700;
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+        
+        .stat-item-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .stat-item-label {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        
+        .total-prize {
+            grid-column: span 2;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            color: #ffd700;
+            font-weight: bold;
         }
         
         .filters {
@@ -599,10 +660,6 @@
         }
         
         @media (max-width: 360px) {
-            .game-field {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
             .ticket-numbers {
                 gap: 6px;
             }
@@ -635,14 +692,20 @@
             <div style="width: 44px;"></div>
         </div>
         
-        <div class="stats-cards">
-            <div class="stat-card">
-                <div class="stat-value" id="totalTickets">0</div>
-                <div class="stat-label">Всего билетов</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="wonAmount">0</div>
-                <div class="stat-label">Выиграно Stars</div>
+        <!-- ДОБАВЛЯЕМ ЭТОТ КОНТЕЙНЕР ДЛЯ СТАТИСТИКИ -->
+        <div class="stats-section">
+            <div id="statsContainer">
+                <!-- Статистика будет загружена здесь -->
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalTickets">0</div>
+                        <div class="stat-label">Всего билетов</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="wonAmount">0</div>
+                        <div class="stat-label">Выиграно Stars</div>
+                    </div>
+                </div>
             </div>
         </div>
         
