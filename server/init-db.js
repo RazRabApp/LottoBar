@@ -1,3 +1,4 @@
+// server/init-db.js - ИСПРАВЛЕННАЯ ВЕРСИЯ ДЛЯ МИГРАЦИЙ
 const { pool } = require('./db');
 
 async function migrateDatabase() {
@@ -8,286 +9,200 @@ async function migrateDatabase() {
     try {
         await client.query('BEGIN');
         
-        console.log('📝 Создаем недостающие таблицы...');
+        console.log('📝 Создаем расширение для UUID...');
+        await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
         
-        // Сначала создаем таблицу settings если ее нет
+        console.log('👤 Проверяем таблицу users...');
+        
+        // Таблица пользователей
         await client.query(`
-            CREATE TABLE IF NOT EXISTS settings (
-                id SERIAL PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGSERIAL PRIMARY KEY,
+                telegram_id VARCHAR(100) UNIQUE NOT NULL,
+                username VARCHAR(100),
+                first_name VARCHAR(100),
+                last_name VARCHAR(100),
+                balance DECIMAL(12,2) DEFAULT 1000.00,
+                total_won DECIMAL(12,2) DEFAULT 0.00,
+                tickets_purchased INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                is_blocked BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        console.log('🎰 Проверяем таблицу draws...');
+        
+        // Таблица тиражей
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS draws (
+                id BIGSERIAL PRIMARY KEY,
+                draw_number VARCHAR(50) UNIQUE NOT NULL,
+                draw_time TIMESTAMP WITH TIME ZONE NOT NULL,
+                status VARCHAR(20) DEFAULT 'scheduled',
+                prize_pool DECIMAL(12,2) DEFAULT 10000.00,
+                jackpot_balance DECIMAL(12,2) DEFAULT 10000.00,
+                total_tickets INTEGER DEFAULT 0,
+                winning_numbers INTEGER[],
+                winning_proof JSONB,
+                verification_hash VARCHAR(255),
+                winners_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP WITH TIME ZONE
+            );
+        `);
+        
+        console.log('🎫 Проверяем таблицу tickets...');
+        
+        // Таблица билетов
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS tickets (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                telegram_id VARCHAR(100) NOT NULL,
+                draw_id BIGINT NOT NULL,
+                ticket_number VARCHAR(100) UNIQUE NOT NULL,
+                numbers INTEGER[] NOT NULL,
+                numbers_hash VARCHAR(255) NOT NULL,
+                verification_hash VARCHAR(255) NOT NULL,
+                signed_data TEXT,
+                price DECIMAL(10,2) DEFAULT 50.00,
+                status VARCHAR(20) DEFAULT 'active',
+                win_amount DECIMAL(12,2) DEFAULT 0.00,
+                matched_count INTEGER DEFAULT 0,
+                matched_numbers INTEGER[] DEFAULT '{}',
+                checked_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        console.log('💰 Проверяем таблицу transactions...');
+        
+        // Таблица транзакций
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS transactions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                telegram_id VARCHAR(100) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                amount DECIMAL(12,2) NOT NULL,
+                description TEXT,
+                reference_id VARCHAR(100),
+                status VARCHAR(20) DEFAULT 'completed',
+                metadata JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        console.log('🔑 Проверяем таблицу user_sessions...');
+        
+        // Таблица сессий
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                telegram_id VARCHAR(100) NOT NULL,
+                token VARCHAR(255) UNIQUE NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        console.log('⚙️  Проверяем таблицу system_settings...');
+        
+        // Таблица настроек
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS system_settings (
+                id BIGSERIAL PRIMARY KEY,
                 key VARCHAR(100) UNIQUE NOT NULL,
                 value TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                description TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
-            
-            INSERT INTO settings (key, value) 
-            VALUES ('jackpot_balance', '10000')
-            ON CONFLICT (key) DO NOTHING;
         `);
         
-        console.log('👤 Проверяем и обновляем таблицу users...');
+        console.log('📦 Проверяем таблицу draws_archive...');
         
-        // Сначала проверяем существование таблицы users
-        const usersTableExists = await client.query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'users'
-            )
+        // Таблица архива
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS draws_archive (
+                id BIGSERIAL PRIMARY KEY,
+                original_draw_id BIGINT,
+                draw_number VARCHAR(50) NOT NULL,
+                draw_time TIMESTAMP WITH TIME ZONE NOT NULL,
+                status VARCHAR(20),
+                prize_pool DECIMAL(12,2),
+                total_tickets INTEGER,
+                winning_numbers INTEGER[],
+                winning_proof JSONB,
+                verification_hash VARCHAR(255),
+                winners_count INTEGER,
+                archived_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
         `);
         
-        if (!usersTableExists.rows[0].exists) {
-            console.log('📋 Таблица users не существует, создаем...');
+        // Добавляем внешние ключи если их нет
+        console.log('🔗 Добавляем внешние ключи...');
+        
+        try {
             await client.query(`
-                CREATE TABLE users (
-                    id SERIAL PRIMARY KEY,
-                    telegram_id BIGINT UNIQUE,
-                    username VARCHAR(100),
-                    first_name VARCHAR(100),
-                    last_name VARCHAR(100),
-                    balance DECIMAL(10,2) DEFAULT 1000.00,
-                    total_won DECIMAL(10,2) DEFAULT 0.00,
-                    is_demo BOOLEAN DEFAULT FALSE,
-                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                ALTER TABLE tickets 
+                ADD CONSTRAINT fk_tickets_user_id 
+                FOREIGN KEY (user_id) REFERENCES users(id) 
+                ON DELETE CASCADE;
             `);
-            console.log('✅ Таблица users создана');
-        } else {
-            // Таблица существует, добавляем недостающие колонки
-            console.log('📋 Таблица users существует, проверяем колонки...');
-            
-            // Проверяем и добавляем колонку balance если ее нет
-            const hasBalance = await client.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'users' 
-                AND column_name = 'balance'
-            `);
-            
-            if (hasBalance.rows.length === 0) {
-                console.log('➕ Добавляем колонку balance в users');
-                await client.query('ALTER TABLE users ADD COLUMN balance DECIMAL(10,2) DEFAULT 1000.00');
-            }
-            
-            // Проверяем и добавляем колонку total_won если ее нет
-            const hasTotalWon = await client.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'users' 
-                AND column_name = 'total_won'
-            `);
-            
-            if (hasTotalWon.rows.length === 0) {
-                console.log('➕ Добавляем колонку total_won в users');
-                await client.query('ALTER TABLE users ADD COLUMN total_won DECIMAL(10,2) DEFAULT 0.00');
-            }
-            
-            // Обновляем балансы только для существующих записей
-            const usersCount = await client.query('SELECT COUNT(*) FROM users');
-            if (parseInt(usersCount.rows[0].count) > 0) {
-                console.log('💰 Обновляем балансы пользователей...');
-                await client.query(`
-                    UPDATE users 
-                    SET balance = 1000 
-                    WHERE balance IS NULL OR balance = 0
-                `);
-                console.log(`✅ Обновлено ${usersCount.rows[0].count} пользователей`);
-            }
+        } catch (e) {
+            console.log('   Внешний ключ fk_tickets_user_id уже существует');
         }
         
-        console.log('🎫 Проверяем и обновляем таблицу tickets...');
-        
-        // Проверяем существование таблицы tickets
-        const ticketsTableExists = await client.query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'tickets'
-            )
-        `);
-        
-        if (!ticketsTableExists.rows[0].exists) {
-            console.log('📋 Таблица tickets не существует, создаем...');
+        try {
             await client.query(`
-                CREATE TABLE tickets (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                    draw_id INTEGER REFERENCES draws(id) ON DELETE CASCADE,
-                    ticket_number VARCHAR(50) UNIQUE NOT NULL,
-                    numbers INTEGER[] NOT NULL,
-                    price DECIMAL(10,2) DEFAULT 50.00,
-                    status VARCHAR(20) DEFAULT 'active',
-                    win_amount DECIMAL(10,2) DEFAULT 0.00,
-                    matched_count INTEGER DEFAULT 0,
-                    matched_numbers INTEGER[] DEFAULT '{}',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    checked_at TIMESTAMP
-                )
+                ALTER TABLE tickets 
+                ADD CONSTRAINT fk_tickets_draw_id 
+                FOREIGN KEY (draw_id) REFERENCES draws(id) 
+                ON DELETE CASCADE;
             `);
-            console.log('✅ Таблица tickets создана');
-        } else {
-            // Таблица существует, проверяем колонки
-            console.log('📋 Таблица tickets существует, проверяем колонки...');
-            
-            // Проверяем колонку matched_numbers
-            const hasMatchedNumbers = await client.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'tickets' 
-                AND column_name = 'matched_numbers'
-            `);
-            
-            if (hasMatchedNumbers.rows.length === 0) {
-                console.log('➕ Добавляем колонку matched_numbers в tickets');
-                await client.query('ALTER TABLE tickets ADD COLUMN matched_numbers INTEGER[] DEFAULT \'{}\'');
-            }
-            
-            // Проверяем колонку matched_count
-            const hasMatchedCount = await client.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'tickets' 
-                AND column_name = 'matched_count'
-            `);
-            
-            if (hasMatchedCount.rows.length === 0) {
-                console.log('➕ Добавляем колонку matched_count в tickets');
-                await client.query('ALTER TABLE tickets ADD COLUMN matched_count INTEGER DEFAULT 0');
-            }
+        } catch (e) {
+            console.log('   Внешний ключ fk_tickets_draw_id уже существует');
         }
         
-        console.log('🎰 Проверяем и обновляем таблицу draws...');
-        
-        // Проверяем существование таблицы draws
-        const drawsTableExists = await client.query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'draws'
-            )
-        `);
-        
-        if (!drawsTableExists.rows[0].exists) {
-            console.log('📋 Таблица draws не существует, создаем...');
+        try {
             await client.query(`
-                CREATE TABLE draws (
-                    id SERIAL PRIMARY KEY,
-                    draw_number VARCHAR(50) UNIQUE NOT NULL,
-                    draw_time TIMESTAMP NOT NULL,
-                    status VARCHAR(20) DEFAULT 'scheduled',
-                    prize_pool DECIMAL(10,2) DEFAULT 10000.00,
-                    jackpot_balance DECIMAL(10,2) DEFAULT 10000.00,
-                    total_tickets INTEGER DEFAULT 0,
-                    winning_numbers INTEGER[],
-                    winners_count INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                ALTER TABLE transactions 
+                ADD CONSTRAINT fk_transactions_user_id 
+                FOREIGN KEY (user_id) REFERENCES users(id) 
+                ON DELETE CASCADE;
             `);
-            console.log('✅ Таблица draws создана');
+        } catch (e) {
+            console.log('   Внешний ключ fk_transactions_user_id уже существует');
         }
         
-        console.log('🎰 Обновляем номера тиражей если нужно...');
-        // Обновляем только если есть записи
-        const drawsCount = await client.query('SELECT COUNT(*) FROM draws');
-        if (parseInt(drawsCount.rows[0].count) > 0) {
+        try {
             await client.query(`
-                UPDATE draws 
-                SET draw_number = 'ТИРАЖ-' || LPAD(
-                    (EXTRACT(EPOCH FROM COALESCE(created_at, draw_time))::INTEGER % 10000)::TEXT,
-                    4, '0'
-                )
-                WHERE draw_number NOT LIKE 'ТИРАЖ-%' 
-                OR draw_number IS NULL;
+                ALTER TABLE user_sessions 
+                ADD CONSTRAINT fk_user_sessions_user_id 
+                FOREIGN KEY (user_id) REFERENCES users(id) 
+                ON DELETE CASCADE;
             `);
+        } catch (e) {
+            console.log('   Внешний ключ fk_user_sessions_user_id уже существует');
         }
         
-        console.log('📅 Проверяем активные тиражи...');
-        const activeDraw = await client.query(
-            "SELECT * FROM draws WHERE status IN ('scheduled', 'drawing') LIMIT 1"
-        );
-        
-        if (activeDraw.rows.length === 0) {
-            console.log('🎰 Нет активного тиража, создаем новый...');
-            
-            // Получаем следующий номер для тиража
-            let nextNum = 1;
-            try {
-                const nextNumber = await client.query(`
-                    SELECT COALESCE(
-                        MAX(CAST(SUBSTRING(draw_number FROM 'ТИРАЖ-(\\d+)') AS INTEGER)), 
-                        0
-                    ) + 1 as next_num 
-                    FROM draws 
-                    WHERE draw_number LIKE 'ТИРАЖ-%'
-                `);
-                
-                if (nextNumber.rows[0]?.next_num) {
-                    nextNum = nextNumber.rows[0].next_num;
-                }
-            } catch (error) {
-                console.log('⚠️ Не удалось получить следующий номер тиража, используем 1:', error.message);
-            }
-            
-            const drawNumber = `ТИРАЖ-${String(nextNum).padStart(4, '0')}`;
-            
-            await client.query(`
-                INSERT INTO draws (
-                    draw_number, draw_time, status, prize_pool, 
-                    total_tickets, jackpot_balance
-                ) VALUES ($1, NOW() + INTERVAL '15 minutes', 'scheduled', 
-                          10000, 0, 10000)
-                RETURNING draw_number
-            `, [drawNumber]);
-            
-            console.log(`✅ Создан новый тираж: ${drawNumber}`);
-        } else {
-            console.log(`📊 Найден активный тираж: ${activeDraw.rows[0].draw_number}`);
-        }
-        
-        console.log('✅ Все таблицы проверены/созданы');
-        
-        // Проверяем таблицу transactions
-        const transactionsTableExists = await client.query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'transactions'
-            )
-        `);
-        
-        if (!transactionsTableExists.rows[0].exists) {
-            console.log('📋 Создаем таблицу transactions...');
-            await client.query(`
-                CREATE TABLE transactions (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                    type VARCHAR(50) NOT NULL,
-                    amount DECIMAL(10,2) NOT NULL,
-                    description TEXT,
-                    status VARCHAR(20) DEFAULT 'completed',
-                    reference_id VARCHAR(100),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            console.log('✅ Таблица transactions создана');
-        }
-        
-        // Создаем индексы для производительности
-        console.log('📊 Создаем индексы для производительности...');
+        // Создаем индексы
+        console.log('📊 Создаем индексы...');
         
         const indexes = [
             { name: 'idx_users_telegram_id', sql: 'CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)' },
-            { name: 'idx_users_balance', sql: 'CREATE INDEX IF NOT EXISTS idx_users_balance ON users(balance)' },
             { name: 'idx_draws_status_time', sql: 'CREATE INDEX IF NOT EXISTS idx_draws_status_time ON draws(status, draw_time)' },
-            { name: 'idx_draws_number', sql: 'CREATE INDEX IF NOT EXISTS idx_draws_number ON draws(draw_number)' },
-            { name: 'idx_tickets_user_draw', sql: 'CREATE INDEX IF NOT EXISTS idx_tickets_user_draw ON tickets(user_id, draw_id)' },
-            { name: 'idx_tickets_status', sql: 'CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)' },
-            { name: 'idx_tickets_number', sql: 'CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)' },
-            { name: 'idx_transactions_user', sql: 'CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id)' },
-            { name: 'idx_transactions_created', sql: 'CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC)' }
+            { name: 'idx_tickets_user_status', sql: 'CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON tickets(user_id, status)' },
+            { name: 'idx_tickets_telegram_id', sql: 'CREATE INDEX IF NOT EXISTS idx_tickets_telegram_id ON tickets(telegram_id)' },
+            { name: 'idx_transactions_user_id', sql: 'CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)' }
         ];
         
         for (const index of indexes) {
@@ -295,14 +210,75 @@ async function migrateDatabase() {
                 await client.query(index.sql);
                 console.log(`   ✅ Создан индекс: ${index.name}`);
             } catch (error) {
-                console.log(`   ⚠️  Не удалось создать индекс ${index.name}: ${error.message}`);
+                console.log(`   ⚠️  Ошибка создания индекса ${index.name}: ${error.message}`);
             }
         }
         
+        // Добавляем начальные настройки
+        console.log('⚙️  Добавляем начальные настройки...');
+        
+        await client.query(`
+            INSERT INTO system_settings (key, value, description)
+            VALUES 
+                ('ticket_price', '50', 'Стоимость билета в Stars'),
+                ('draw_interval_minutes', '15', 'Интервал между тиражами в минутах'),
+                ('draw_duration_minutes', '1', 'Длительность розыгрыша в минутах'),
+                ('jackpot_amount', '10000', 'Размер джекпота в Stars'),
+                ('numbers_to_select', '12', 'Количество чисел для выбора'),
+                ('numbers_range_min', '1', 'Минимальное число'),
+                ('numbers_range_max', '24', 'Максимальное число'),
+                ('demo_mode', 'false', 'Режим демо (true/false)'),
+                ('system_version', '6.0.0', 'Версия системы')
+            ON CONFLICT (key) DO UPDATE SET 
+                value = EXCLUDED.value,
+                description = EXCLUDED.description,
+                updated_at = CURRENT_TIMESTAMP;
+        `);
+        
+        // Проверяем наличие активного тиража
+        console.log('🎰 Проверяем активный тираж...');
+        
+        const activeDraw = await client.query(`
+            SELECT * FROM draws 
+            WHERE status IN ('scheduled', 'drawing')
+            LIMIT 1
+        `);
+        
+        if (activeDraw.rows.length === 0) {
+            console.log('🎰 Создаем начальный тираж...');
+            
+            await client.query(`
+                INSERT INTO draws (
+                    draw_number, 
+                    draw_time, 
+                    status, 
+                    prize_pool, 
+                    jackpot_balance,
+                    total_tickets,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    'ТИРАЖ-0001', 
+                    NOW() + INTERVAL '15 minutes', 
+                    'scheduled', 
+                    10000, 
+                    10000,
+                    0,
+                    NOW(),
+                    NOW()
+                )
+            `);
+            
+            console.log('✅ Создан начальный тираж: ТИРАЖ-0001');
+        } else {
+            console.log(`📊 Найден активный тираж: ${activeDraw.rows[0].draw_number}`);
+        }
+        
         await client.query('COMMIT');
+        
         console.log('✅ Миграция базы данных завершена успешно');
         
-        // Выводим итоговую статистику
+        // Выводим статистику
         const stats = await client.query(`
             SELECT 
                 (SELECT COUNT(*) FROM users) as users_count,
@@ -311,7 +287,7 @@ async function migrateDatabase() {
                 (SELECT COUNT(*) FROM transactions) as transactions_count
         `);
         
-        console.log('\n📊 ИТОГОВАЯ СТАТИСТИКА БАЗЫ ДАННЫХ:');
+        console.log('\n📊 СТАТИСТИКА БАЗЫ ДАННЫХ:');
         console.log(`👤 Пользователей: ${stats.rows[0].users_count}`);
         console.log(`🎰 Тиражей: ${stats.rows[0].draws_count}`);
         console.log(`🎫 Билетов: ${stats.rows[0].tickets_count}`);
@@ -323,8 +299,7 @@ async function migrateDatabase() {
         console.error('🔧 Детали ошибки:', {
             code: error.code,
             detail: error.detail,
-            hint: error.hint,
-            position: error.position
+            hint: error.hint
         });
         throw error;
         
@@ -342,8 +317,7 @@ if (require.main === module) {
             process.exit(0);
         })
         .catch(error => {
-            console.error('💥 Критическая ошибка миграций:', error.message);
-            console.log('⚠️  Продолжаем работу без миграций...');
-            process.exit(0); // Выходим без ошибки, чтобы сервер запустился
+            console.error('💥 Критическая ошибка миграций:', error);
+            process.exit(1);
         });
 }
