@@ -20,6 +20,7 @@
             min-height: 100vh;
             color: white;
             padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            overflow-x: hidden;
         }
         
         .tickets-container {
@@ -65,7 +66,7 @@
             flex: 1;
         }
         
-        /* СТАТИСТИКА - ИЗМЕНЕНО ДЛЯ ПРАВИЛЬНОЙ СТРУКТУРЫ */
+        /* СТАТИСТИКА */
         .stats-section {
             margin-bottom: 24px;
             animation: fadeIn 0.5s ease;
@@ -80,6 +81,7 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 12px;
+            margin-bottom: 20px;
         }
         
         .stat-card {
@@ -110,12 +112,11 @@
             letter-spacing: 0.5px;
         }
         
-        /* Добавляем новый контейнер для детальной статистики */
+        /* Детальная статистика */
         .stats-details {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 16px;
             padding: 15px;
-            margin-top: 10px;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
@@ -161,10 +162,30 @@
             font-weight: bold;
         }
         
+        /* Фильтры */
+        .filters-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .filters-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .filters-header h3 {
+            font-size: 1.1rem;
+            color: #ffd700;
+        }
+        
         .filters {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
             overflow-x: auto;
             padding-bottom: 10px;
             -webkit-overflow-scrolling: touch;
@@ -199,6 +220,22 @@
             font-weight: bold;
         }
         
+        .reset-filters {
+            padding: 10px 16px;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        .reset-filters:hover {
+            background: rgba(255, 107, 107, 0.2);
+        }
+        
+        /* Список билетов */
         .tickets-list {
             display: flex;
             flex-direction: column;
@@ -213,6 +250,24 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             transition: transform 0.3s, background 0.3s;
             animation: slideIn 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ticket-card:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #4CAF50, #ffd700);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .ticket-card:hover:before {
+            opacity: 1;
         }
         
         .ticket-card.visible {
@@ -241,23 +296,23 @@
         }
         
         .ticket-card.won {
-            border-left: 4px solid #ffd700;
-            background: rgba(255, 215, 0, 0.05);
+            border-left: 5px solid #ffd700;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(76, 175, 80, 0.05));
         }
         
         .ticket-card.lost {
-            border-left: 4px solid #ff6b6b;
-            background: rgba(255, 107, 107, 0.05);
+            border-left: 5px solid #ff6b6b;
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(108, 117, 125, 0.05));
         }
         
         .ticket-card.active {
-            border-left: 4px solid #2196F3;
-            background: rgba(33, 150, 243, 0.05);
+            border-left: 5px solid #2196F3;
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.1), rgba(76, 175, 80, 0.05));
         }
         
         .ticket-card.drawing {
-            border-left: 4px solid #ffc107;
-            background: rgba(255, 193, 7, 0.05);
+            border-left: 5px solid #ffc107;
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(108, 117, 125, 0.05));
         }
         
         .ticket-header {
@@ -265,6 +320,14 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .ticket-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
         }
         
         .ticket-number {
@@ -273,13 +336,25 @@
             color: #ffd700;
         }
         
+        .ticket-draw {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            color: #4CAF50;
+        }
+        
+        .ticket-date {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        
         .ticket-status {
-            padding: 6px 12px;
+            padding: 8px 16px;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            white-space: nowrap;
         }
         
         .status-active {
@@ -302,24 +377,6 @@
             color: #ffc107;
         }
         
-        .ticket-draw {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            font-size: 0.9rem;
-        }
-        
-        .draw-label {
-            opacity: 0.7;
-            margin-right: 5px;
-        }
-        
-        .draw-number {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        
         .ticket-numbers {
             display: flex;
             flex-wrap: wrap;
@@ -338,9 +395,6 @@
             font-weight: bold;
             font-size: 0.9rem;
             transition: all 0.3s;
-        }
-        
-        .ticket-number-badge:not(.matched) {
             background: rgba(76, 175, 80, 0.2);
             color: #4CAF50;
             border: 2px solid rgba(76, 175, 80, 0.3);
@@ -359,7 +413,7 @@
             100% { transform: scale(1); }
         }
         
-        .ticket-info {
+        .ticket-details {
             display: grid;
             grid-template-columns: 1fr;
             gap: 12px;
@@ -387,25 +441,86 @@
         .win-amount {
             color: #ffd700;
             font-weight: bold;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
         }
         
         .winning-numbers {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-top: 5px;
+            margin-top: 10px;
+            justify-content: center;
         }
         
         .winning-numbers span {
             background: rgba(255, 215, 0, 0.3);
             color: #ffd700;
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 8px;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             font-weight: bold;
             min-width: 28px;
             text-align: center;
+        }
+        
+        .ticket-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(to right, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .loading {
@@ -434,46 +549,70 @@
             to { transform: rotate(360deg); }
         }
         
-        .no-tickets {
+        /* Состояния */
+        .empty-state {
             text-align: center;
-            padding: 80px 20px;
+            padding: 60px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            margin: 20px 0;
         }
         
-        .no-tickets-icon {
-            font-size: 5rem;
-            margin-bottom: 25px;
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
             opacity: 0.5;
         }
         
-        .no-tickets h3 {
-            margin-bottom: 15px;
+        .empty-state h3 {
+            margin-bottom: 10px;
             color: white;
             font-size: 1.5rem;
         }
         
-        .no-tickets p {
+        .empty-state p {
             opacity: 0.7;
             margin-bottom: 25px;
-            font-size: 1.1rem;
+            font-size: 1rem;
             line-height: 1.5;
         }
         
+        .demo-notification {
+            background: rgba(255, 165, 0, 0.1);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #ff9800;
+        }
+        
+        .demo-notification .icon {
+            font-size: 1.5rem;
+        }
+        
+        /* Floating Action Button */
         .floating-action {
             position: fixed;
             bottom: 20px;
             right: 20px;
             left: 20px;
             z-index: 100;
+            display: flex;
+            gap: 10px;
         }
         
         .fab {
-            width: 100%;
-            padding: 20px;
+            flex: 1;
+            padding: 18px;
             background: linear-gradient(135deg, #4CAF50, #45a049);
             border: none;
             border-radius: 16px;
             color: white;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             display: flex;
@@ -493,9 +632,10 @@
             transform: translateY(0);
         }
         
-        /* Прокрутка с инерцией для iOS */
-        .tickets-list {
-            -webkit-overflow-scrolling: touch;
+        .fab-secondary {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
         
         /* Уведомления */
@@ -503,6 +643,7 @@
             position: fixed;
             top: 20px;
             right: 20px;
+            left: 20px;
             padding: 16px 20px;
             border-radius: 12px;
             color: white;
@@ -511,11 +652,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            min-width: 300px;
-            max-width: 400px;
             animation: slideInRight 0.3s ease;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 400px;
+            margin: 0 auto;
         }
         
         .notification.success {
@@ -528,6 +669,10 @@
         
         .notification.info {
             background: rgba(33, 150, 243, 0.9);
+        }
+        
+        .notification.warning {
+            background: rgba(255, 152, 0, 0.9);
         }
         
         .notification-content {
@@ -593,7 +738,106 @@
             }
         }
         
+        /* Модальное окно деталей билета */
+        .ticket-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        
+        .modal-header {
+            padding: 25px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: #ffd700;
+            font-size: 1.5rem;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+        
+        .close-modal:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .modal-body {
+            padding: 25px;
+        }
+        
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 15px;
+        }
+        
         /* Адаптивность */
+        @media (max-width: 768px) {
+            .stats-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .ticket-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .ticket-status {
+                align-self: flex-start;
+            }
+            
+            .floating-action {
+                flex-direction: column;
+            }
+            
+            .ticket-actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+        
         @media (max-width: 480px) {
             .tickets-container {
                 padding: 12px;
@@ -605,11 +849,6 @@
             
             .page-title {
                 font-size: 1.3rem;
-            }
-            
-            .stats-cards {
-                grid-template-columns: 1fr;
-                gap: 10px;
             }
             
             .stat-card {
@@ -646,16 +885,8 @@
             }
             
             .fab {
-                padding: 18px;
-                font-size: 1rem;
-            }
-            
-            .notification {
-                min-width: 280px;
-                max-width: 350px;
-                padding: 14px 18px;
-                right: 15px;
-                left: 15px;
+                padding: 16px;
+                font-size: 0.95rem;
             }
         }
         
@@ -682,6 +913,13 @@
                 background: rgba(255, 255, 255, 0.03);
             }
         }
+        
+        /* Улучшенные стили для iOS */
+        @supports (-webkit-touch-callout: none) {
+            body {
+                padding-bottom: calc(20px + env(safe-area-inset-bottom));
+            }
+        }
     </style>
 </head>
 <body>
@@ -692,87 +930,61 @@
             <div style="width: 44px;"></div>
         </div>
         
-        <!-- ДОБАВЛЯЕМ ЭТОТ КОНТЕЙНЕР ДЛЯ СТАТИСТИКИ -->
+        <!-- Статистика -->
         <div class="stats-section">
             <div id="statsContainer">
                 <!-- Статистика будет загружена здесь -->
-                <div class="stats-cards">
-                    <div class="stat-card">
-                        <div class="stat-value" id="totalTickets">0</div>
-                        <div class="stat-label">Всего билетов</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="wonAmount">0</div>
-                        <div class="stat-label">Выиграно Stars</div>
-                    </div>
-                </div>
             </div>
         </div>
         
-        <div class="filters">
-            <button class="filter-btn active" data-filter="all">
-                Все
-                <span class="filter-count">0</span>
-            </button>
-            <button class="filter-btn" data-filter="active">
-                Активные
-                <span class="filter-count">0</span>
-            </button>
-            <button class="filter-btn" data-filter="drawing">
-                Розыгрыш
-                <span class="filter-count">0</span>
-            </button>
-            <button class="filter-btn" data-filter="won">
-                Выигравшие
-                <span class="filter-count">0</span>
-            </button>
-            <button class="filter-btn" data-filter="lost">
-                Проигравшие
-                <span class="filter-count">0</span>
-            </button>
+        <!-- Фильтры -->
+        <div class="filters-container">
+            <div class="filters-header">
+                <h3>🔍 Фильтры</h3>
+                <button class="reset-filters" id="resetFiltersBtn">Сбросить</button>
+            </div>
+            <div class="filters">
+                <button class="filter-btn active" data-filter="all">
+                    Все
+                    <span class="filter-count" id="countAll">0</span>
+                </button>
+                <button class="filter-btn" data-filter="active">
+                    Активные
+                    <span class="filter-count" id="countActive">0</span>
+                </button>
+                <button class="filter-btn" data-filter="drawing">
+                    Розыгрыш
+                    <span class="filter-count" id="countDrawing">0</span>
+                </button>
+                <button class="filter-btn" data-filter="won">
+                    Выигравшие
+                    <span class="filter-count" id="countWon">0</span>
+                </button>
+                <button class="filter-btn" data-filter="lost">
+                    Проигравшие
+                    <span class="filter-count" id="countLost">0</span>
+                </button>
+            </div>
         </div>
         
+        <!-- Список билетов -->
         <div class="tickets-list" id="ticketsList">
-            <div class="loading">
+            <div class="loading" id="loadingTickets">
                 <div class="spinner"></div>
                 <p>Загрузка билетов...</p>
             </div>
         </div>
         
+        <!-- Кнопки действий -->
         <div class="floating-action">
             <button class="fab" onclick="window.location.href='/game'">
                 🎮 Вернуться к игре
             </button>
+            <button class="fab fab-secondary" onclick="ticketsManager.refreshTickets()" id="refreshBtn">
+                🔄 Обновить
+            </button>
         </div>
     </div>
-    
-    <script>
-    // Простая проверка, что файл загружается
-    console.log('✅ tickets.html загружен');
-    console.log('🔍 Проверка tickets.js...');
-    
-    // Проверяем, загрузился ли файл
-    setTimeout(() => {
-        if (typeof TicketsManager === 'undefined') {
-            console.error('❌ TicketsManager не загружен!');
-            
-            // Показываем fallback UI
-            document.getElementById('ticketsList').innerHTML = `
-                <div class="no-tickets" style="color: #ff6b6b;">
-                    <div style="font-size: 3rem;">⚠️</div>
-                    <h3>Ошибка загрузки скрипта</h3>
-                    <p>Файл tickets.js не загрузился. Пожалуйста, обновите страницу.</p>
-                    <button onclick="location.reload()" 
-                            style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 12px; margin-top: 15px; cursor: pointer; font-weight: bold; width: 100%;">
-                        🔄 Обновить страницу
-                    </button>
-                </div>
-            `;
-        } else {
-            console.log('✅ TicketsManager загружен успешно');
-        }
-    }, 1000);
-    </script>
     
     <script src="js/tickets.js"></script>
 </body>
