@@ -1,4 +1,4 @@
-// public/js/game.js - ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНЫМИ ПУТЯМИ
+// public/js/game.js - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 class FortunaGame {
     constructor() {
         this.selectedNumbers = [];
@@ -20,7 +20,7 @@ class FortunaGame {
     }
     
     async init() {
-        console.log('🎮 Инициализация Fortuna Lottery v4...');
+        console.log('🎮 Инициализация Fortuna Lottery v5...');
         console.log('🔍 Проверка окружения...');
         
         // Проверяем поддержку Web Crypto API
@@ -393,10 +393,8 @@ class FortunaGame {
             
             if (data.success && data.draw) {
                 this.currentDraw = data.draw;
-                // Обновляем джекпот на 10000 Stars
-                if (this.currentDraw.jackpot_balance < 10000) {
-                    this.currentDraw.jackpot_balance = 10000;
-                }
+                // ФИКСИРУЕМ ДЖЕКПОТ НА 10000 STARS
+                this.currentDraw.jackpot_balance = 10000;
                 
                 console.log('✅ Тиража загружен:', {
                     номер: this.currentDraw.draw_number,
@@ -435,7 +433,7 @@ class FortunaGame {
             draw_number: 'ТИРАЖ-DEMO',
             draw_time: nextDrawTime.toISOString(),
             status: 'scheduled',
-            jackpot_balance: 10000, // ФИКСИРОВАННЫЙ ДЖЕКПОТ 10000
+            jackpot_balance: 10000, // ФИКСИРОВАННЫЙ ДЖЕКПОТ 10000 STARS
             time_remaining: timeRemaining,
             time_formatted: '15 мин 00 сек',
             can_buy_tickets: timeRemaining > 120
@@ -501,6 +499,7 @@ class FortunaGame {
                 actionHtml = '<div class="draw-action error">⚠️ Ошибка получения статуса</div>';
         }
         
+        // ВСЕГДА ПОКАЗЫВАЕМ 10,000 STARS
         drawInfo.innerHTML = `
             <div class="draw-header">
                 <div class="draw-number">${draw.draw_number || 'ТИРАЖ-0001'}</div>
@@ -508,7 +507,7 @@ class FortunaGame {
             </div>
             ${timeHtml}
             <div class="draw-prize">
-                Суперприз: <span class="prize-amount">${(draw.jackpot_balance || 10000).toLocaleString()} Stars</span>
+                Суперприз: <span class="prize-amount">10,000 Stars</span>
             </div>
             ${actionHtml}
             ${draw.winning_numbers ? `
@@ -602,7 +601,7 @@ class FortunaGame {
     async createNewDraw() {
         console.log('🎰 Создание нового тиража...');
         
-        // Создаем новый демо-тираж с фиксированным джекпотом
+        // Создаем новый демо-тираж с фиксированным джекпотом 10000 Stars
         const nextDrawTime = new Date(Date.now() + 15 * 60 * 1000);
         const timeRemaining = Math.floor((nextDrawTime - Date.now()) / 1000);
         
@@ -611,7 +610,7 @@ class FortunaGame {
             draw_number: 'ТИРАЖ-' + Date.now().toString().slice(-6),
             draw_time: nextDrawTime.toISOString(),
             status: 'scheduled',
-            jackpot_balance: 10000, // ФИКСИРОВАННЫЙ ДЖЕКПОТ
+            jackpot_balance: 10000, // ВСЕГДА 10000 STARS
             time_remaining: timeRemaining,
             time_formatted: '15 мин 00 сек',
             can_buy_tickets: timeRemaining > 120
@@ -1058,20 +1057,19 @@ class FortunaGame {
     
     openMyTickets() {
         if (this.userId) {
-            // ИСПРАВЛЕН ПУТЬ - используем правильный формат URL
+            // ИСПРАВЛЕННЫЙ ПУТЬ - перенаправляем на страницу билетов с параметрами
             const token = this.token || 'local_token';
             const session = sessionStorage.getItem('fortuna_session');
             
-            if (session) {
-                try {
-                    const sessionData = JSON.parse(session);
-                    window.location.href = `/tickets?userId=${sessionData.userId}&token=${sessionData.token}`;
-                } catch (e) {
-                    window.location.href = `/tickets?userId=${this.userId}&token=${token}`;
-                }
-            } else {
-                window.location.href = `/tickets?userId=${this.userId}&token=${token}`;
+            let url = `/tickets?userId=${this.userId}&token=${token}`;
+            
+            // Добавляем источник если это Telegram
+            if (this.isTelegram) {
+                url += `&source=telegram`;
             }
+            
+            console.log('📋 Открываем билеты по URL:', url);
+            window.location.href = url;
         } else {
             this.showNotification('Сначала войдите в систему', 'error');
         }
@@ -1144,6 +1142,13 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+window.addEventListener('pagehide', () => {
+    if (window.game) {
+        window.game.destroy();
+    }
+});
+
+// Функции отладки
 window.debugGame = () => {
     if (window.game) {
         console.log('🔍 Отладка игры:', {
@@ -1155,10 +1160,13 @@ window.debugGame = () => {
             userData: window.game.userData,
             selectedNumbers: window.game.selectedNumbers,
             currentDraw: window.game.currentDraw,
-            tgUser: window.game.tg?.initDataUnsafe?.user
+            tgUser: window.game.tg?.initDataUnsafe?.user,
+            session: sessionStorage.getItem('fortuna_session')
         });
+        
+        this.showNotification('Отладочная информация выведена в консоль', 'info');
     } else {
-        alert('Game not initialized');
+        alert('Игра не инициализирована');
     }
 };
 
@@ -1166,5 +1174,25 @@ window.updateBotUsername = (newUsername) => {
     if (window.game) {
         window.game.botUsername = newUsername;
         console.log('✅ Имя бота обновлено:', newUsername);
+        this.showNotification(`Имя бота изменено на: ${newUsername}`, 'info');
     }
+};
+
+window.resetGameSession = () => {
+    sessionStorage.removeItem('fortuna_session');
+    localStorage.removeItem('fortuna_telegram_user');
+    localStorage.removeItem('fortuna_telegram_id');
+    
+    console.log('🔄 Сессия игры сброшена');
+    this.showNotification('Сессия сброшена. Перезагрузите страницу.', 'info');
+    
+    setTimeout(() => {
+        location.reload();
+    }, 2000);
+};
+
+// Экспорт для тестирования
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { FortunaGame };
+  }
 };
