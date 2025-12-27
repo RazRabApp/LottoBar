@@ -1,4 +1,4 @@
-// tickets.js - ИСПРАВЛЕННАЯ И РАБОЧАЯ ВЕРСИЯ
+// tickets.js - ОБНОВЛЕННАЯ ВЕРСИЯ ДЛЯ РАБОТЫ С ВАШИМ HTML
 class TicketsManager {
     constructor() {
         this.userId = null;
@@ -139,12 +139,14 @@ class TicketsManager {
         try {
             console.log(`📋 Загрузка билетов, страница: ${this.currentPage}`);
             
+            // ПРАВИЛЬНЫЙ URL
             let url = `/api/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=10`;
             
             if (this.filters.status && this.filters.status !== 'all') {
                 url += `&status=${this.filters.status}`;
             }
             
+            console.log('🌐 Запрос по URL:', url);
             const response = await fetch(url);
             
             if (!response.ok) {
@@ -227,11 +229,27 @@ class TicketsManager {
         
         this.hasMore = false;
         this.renderTickets();
+        this.updateFilterCounts();
     }
     
     renderTickets() {
-        const container = document.getElementById('ticketsContainer');
+        const container = document.getElementById('ticketsList');
         if (!container) return;
+        
+        if (this.tickets.length === 0) {
+            container.innerHTML = `
+                <div class="no-tickets">
+                    <div class="no-tickets-icon">🎫</div>
+                    <h3>Билеты не найдены</h3>
+                    <p>${this.filters.status !== 'all' ? 'Попробуйте изменить фильтр' : 'Купите свой первый билет!'}</p>
+                    <button onclick="window.location.href='/game'" 
+                            style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 12px; margin-top: 15px; cursor: pointer; font-weight: bold; width: 100%;">
+                        🎮 Перейти к игре
+                    </button>
+                </div>
+            `;
+            return;
+        }
         
         let filteredTickets = [...this.tickets];
         
@@ -245,26 +263,17 @@ class TicketsManager {
             filteredTickets.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
         }
         
-        if (filteredTickets.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">🎫</div>
-                    <h3>Билеты не найдены</h3>
-                    <p>${this.filters.status !== 'all' ? 'Попробуйте изменить фильтр' : 'Купите свой первый билет!'}</p>
-                </div>
-            `;
-            return;
-        }
-        
         const ticketsHtml = filteredTickets.map(ticket => this.createTicketHTML(ticket)).join('');
         container.innerHTML = ticketsHtml;
         
         console.log(`✅ Отображено билетов: ${filteredTickets.length}`);
+        
+        this.updateFilterCounts();
     }
     
     createTicketHTML(ticket) {
         const numbersHtml = ticket.numbers.map(num => 
-            `<span class="ticket-number">${num}</span>`
+            `<div class="ticket-number-badge">${num}</div>`
         ).join('');
         
         const statusClass = `status-${ticket.status}`;
@@ -278,32 +287,44 @@ class TicketsManager {
         });
         
         const prizeHtml = ticket.win_amount > 0 
-            ? `<div class="ticket-prize">🏆 ${ticket.win_amount} Stars</div>`
+            ? `<div class="win-amount">🏆 ${ticket.win_amount} Stars</div>`
             : '';
         
+        const time = new Date(ticket.created_at).toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
         return `
-            <div class="ticket-card" data-id="${ticket.id}">
+            <div class="ticket-card ${ticket.status}">
                 <div class="ticket-header">
-                    <div class="ticket-info">
-                        <div class="ticket-number-id">${ticket.ticket_number}</div>
-                        <div class="ticket-draw">${ticket.draw_number}</div>
-                        <div class="ticket-date">${date}</div>
-                    </div>
+                    <div class="ticket-number">${ticket.ticket_number}</div>
                     <div class="ticket-status ${statusClass}">
                         ${statusIcon} ${statusText}
                     </div>
+                </div>
+                
+                <div class="ticket-draw">
+                    <span class="draw-label">Тираж:</span>
+                    <span class="draw-number">${ticket.draw_number}</span>
                 </div>
                 
                 <div class="ticket-numbers">
                     ${numbersHtml}
                 </div>
                 
-                ${prizeHtml}
-                
-                <div class="ticket-actions">
-                    <button class="btn btn-small view-ticket" data-id="${ticket.id}">
-                        👁️ Подробнее
-                    </button>
+                <div class="ticket-info">
+                    <div class="info-row">
+                        <span class="info-label">Дата:</span>
+                        <span class="info-value">${date} ${time}</span>
+                    </div>
+                    
+                    ${prizeHtml ? `
+                    <div class="info-row">
+                        <span class="info-label">Выигрыш:</span>
+                        <span class="info-value">${ticket.win_amount} Stars</span>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -331,131 +352,106 @@ class TicketsManager {
     
     updateStatsUI() {
         const statsElement = document.getElementById('statsContainer');
-        if (!statsElement) return;
+        if (!statsElement) {
+            console.error('❌ Элемент statsContainer не найден на странице');
+            
+            // Создаем элемент если его нет
+            const statsSection = document.querySelector('.stats-section');
+            if (statsSection) {
+                statsSection.innerHTML = `
+                    <div id="statsContainer">
+                        <div class="stats-cards">
+                            <div class="stat-card">
+                                <div class="stat-value">${this.stats.total_tickets}</div>
+                                <div class="stat-label">Всего билетов</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${this.stats.total_won}</div>
+                                <div class="stat-label">Выиграно Stars</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            return;
+        }
         
         const stats = this.stats;
         
         statsElement.innerHTML = `
-            <div class="stats-grid">
+            <div class="stats-cards">
                 <div class="stat-card">
-                    <div class="stat-icon">🎫</div>
                     <div class="stat-value">${stats.total_tickets}</div>
                     <div class="stat-label">Всего билетов</div>
                 </div>
-                
                 <div class="stat-card">
-                    <div class="stat-icon">⏳</div>
-                    <div class="stat-value">${stats.active_tickets}</div>
-                    <div class="stat-label">Активные</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-icon">🎲</div>
-                    <div class="stat-value">${stats.drawing_tickets}</div>
-                    <div class="stat-label">В розыгрыше</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-icon">🎉</div>
-                    <div class="stat-value">${stats.won_tickets}</div>
-                    <div class="stat-label">Выигрыши</div>
+                    <div class="stat-value">${stats.total_won}</div>
+                    <div class="stat-label">Выиграно Stars</div>
                 </div>
             </div>
             
-            ${stats.total_won > 0 ? `
-                <div class="total-prizes">
-                    <div class="total-prize-label">Общий выигрыш:</div>
-                    <div class="total-prize-amount">${stats.total_won} Stars</div>
-                </div>
-            ` : ''}
-            
             ${this.apiUnavailable ? `
-                <div class="api-warning">
-                    <div class="warning-icon">⚠️</div>
-                    <div class="warning-text">
-                        <strong>Офлайн режим</strong>
-                        <p>Показываются демо-данные</p>
-                    </div>
+                <div class="api-warning" style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 10px; padding: 10px; margin-top: 10px; text-align: center;">
+                    <div style="font-size: 14px; color: orange;">⚠️ Офлайн режим (демо-данные)</div>
                 </div>
             ` : ''}
         `;
+        
+        // Также обновляем верхние цифры
+        document.getElementById('totalTickets').textContent = stats.total_tickets;
+        document.getElementById('wonAmount').textContent = stats.total_won;
+    }
+    
+    updateFilterCounts() {
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        
+        filterButtons.forEach(btn => {
+            const filter = btn.dataset.filter;
+            let count = 0;
+            
+            if (filter === 'all') {
+                count = this.tickets.length;
+            } else {
+                count = this.tickets.filter(t => t.status === filter).length;
+            }
+            
+            const countSpan = btn.querySelector('.filter-count');
+            if (countSpan) {
+                countSpan.textContent = count;
+            }
+        });
     }
     
     setupUI() {
         console.log('🎨 Настройка UI...');
         
-        const statusFilter = document.getElementById('statusFilter');
-        const sortFilter = document.getElementById('sortFilter');
-        const refreshBtn = document.getElementById('refreshTickets');
-        const resetBtn = document.getElementById('resetFilters');
-        const homeBtn = document.getElementById('goHomeBtn');
-        const buyBtn = document.getElementById('buyTicketBtn');
-        
-        if (statusFilter) {
-            statusFilter.value = this.filters.status;
-            statusFilter.addEventListener('change', (e) => {
-                this.filters.status = e.target.value;
-                this.renderTickets();
-            });
-        }
-        
-        if (sortFilter) {
-            sortFilter.value = this.sortBy;
-            sortFilter.addEventListener('change', (e) => {
-                this.sortBy = e.target.value;
-                this.renderTickets();
-            });
-        }
-        
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
-                refreshBtn.disabled = true;
-                refreshBtn.innerHTML = '<span class="loading-spinner"></span>';
+        // Фильтры
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const filter = e.currentTarget.dataset.filter;
                 
+                // Убираем активный класс у всех кнопок
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                
+                // Добавляем активный класс нажатой кнопке
+                e.currentTarget.classList.add('active');
+                
+                // Устанавливаем фильтр
+                this.filters.status = filter;
                 this.currentPage = 1;
                 this.hasMore = true;
                 this.tickets = [];
-                this.apiUnavailable = false;
-                this.errorCount = 0;
                 
-                const container = document.getElementById('ticketsContainer');
+                // Показываем загрузку
+                const container = document.getElementById('ticketsList');
                 if (container) {
-                    container.innerHTML = '<div class="loading">Загрузка...</div>';
+                    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Загрузка билетов...</p></div>';
                 }
                 
-                await this.loadTickets();
-                await this.loadStats();
-                
-                refreshBtn.disabled = false;
-                refreshBtn.innerHTML = '🔄';
-                this.showNotification('Билеты обновлены', 'success');
+                // Загружаем билеты с новым фильтром
+                this.loadTickets();
             });
-        }
-        
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-                this.filters = { status: 'all' };
-                this.sortBy = 'newest';
-                
-                if (statusFilter) statusFilter.value = 'all';
-                if (sortFilter) sortFilter.value = 'newest';
-                
-                this.renderTickets();
-                this.showNotification('Фильтры сброшены', 'info');
-            });
-        }
-        
-        if (homeBtn) {
-            homeBtn.addEventListener('click', () => {
-                window.location.href = '/game';
-            });
-        }
-        
-        if (buyBtn) {
-            buyBtn.addEventListener('click', () => {
-                window.location.href = '/game';
-            });
-        }
+        });
         
         this.updateStatsUI();
         
@@ -466,13 +462,32 @@ class TicketsManager {
     setupEventListeners() {
         console.log('🎮 Настройка обработчиков событий...');
         
-        document.addEventListener('click', (e) => {
-            const viewBtn = e.target.closest('.view-ticket');
-            if (viewBtn) {
-                const ticketId = viewBtn.dataset.id;
-                this.showTicketDetails(ticketId);
-            }
-        });
+        // Обработчик для обновления
+        const refreshBtn = document.querySelector('.header .back-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', async (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+click для обновления
+                    e.preventDefault();
+                    
+                    this.currentPage = 1;
+                    this.hasMore = true;
+                    this.tickets = [];
+                    this.apiUnavailable = false;
+                    this.errorCount = 0;
+                    
+                    const container = document.getElementById('ticketsList');
+                    if (container) {
+                        container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Загрузка билетов...</p></div>';
+                    }
+                    
+                    await this.loadTickets();
+                    await this.loadStats();
+                    
+                    this.showNotification('Билеты обновлены', 'success');
+                }
+            });
+        }
         
         // Бесконечная прокрутка
         window.addEventListener('scroll', () => {
@@ -484,78 +499,17 @@ class TicketsManager {
         });
     }
     
-    showTicketDetails(ticketId) {
-        const ticket = this.tickets.find(t => t.id === ticketId);
-        if (!ticket) {
-            this.showNotification('Билет не найден', 'error');
-            return;
-        }
-        
-        const modal = document.createElement('div');
-        modal.className = 'ticket-modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>🎫 Детали билета</h3>
-                    <button class="close-modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    ${this.createTicketHTML(ticket)}
-                    <div class="ticket-details">
-                        <div class="detail-item">
-                            <span class="detail-label">Статус:</span>
-                            <span class="detail-value ${ticket.status}">${this.getStatusText(ticket.status)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Цена:</span>
-                            <span class="detail-value">50 Stars</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Дата покупки:</span>
-                            <span class="detail-value">${new Date(ticket.created_at).toLocaleString('ru-RU')}</span>
-                        </div>
-                        ${ticket.win_amount > 0 ? `
-                            <div class="detail-item">
-                                <span class="detail-label">Выигрыш:</span>
-                                <span class="detail-value prize">${ticket.win_amount} Stars</span>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-outline close-btn">Закрыть</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        const closeModal = () => {
-            modal.classList.add('closing');
-            setTimeout(() => modal.remove(), 300);
-        };
-        
-        modal.querySelector('.close-modal').addEventListener('click', closeModal);
-        modal.querySelector('.close-btn').addEventListener('click', closeModal);
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeModal();
-        });
-    }
-    
     showLoading(show) {
-        const container = document.getElementById('ticketsContainer');
-        const loadingEl = document.getElementById('loadingIndicator');
+        const container = document.getElementById('ticketsList');
+        const loadingEl = document.querySelector('.loading-indicator');
         
-        if (show) {
-            if (!loadingEl) {
-                const loader = document.createElement('div');
-                loader.id = 'loadingIndicator';
-                loader.className = 'loading-indicator';
-                loader.innerHTML = '<div class="loading-spinner"></div><div>Загрузка билетов...</div>';
-                container?.appendChild(loader);
-            }
-        } else {
-            loadingEl?.remove();
+        if (show && !loadingEl && this.tickets.length > 0) {
+            const loader = document.createElement('div');
+            loader.className = 'loading-indicator';
+            loader.innerHTML = '<div class="spinner small"></div><div>Загрузка...</div>';
+            container?.appendChild(loader);
+        } else if (!show && loadingEl) {
+            loadingEl.remove();
         }
     }
     
@@ -568,7 +522,7 @@ class TicketsManager {
         notification.innerHTML = `
             <div class="notification-content">
                 <span class="notification-icon">${this.getNotificationIcon(type)}</span>
-                <span>${message}</span>
+                <span class="notification-message">${message}</span>
             </div>
             <button class="close-notification">&times;</button>
         `;
@@ -597,20 +551,19 @@ class TicketsManager {
     }
     
     showAuthError() {
-        const container = document.getElementById('ticketsContainer');
+        const container = document.getElementById('ticketsList');
         if (container) {
             container.innerHTML = `
-                <div class="auth-error">
-                    <div class="error-icon">🔒</div>
+                <div class="no-tickets" style="color: #ff6b6b;">
+                    <div style="font-size: 3rem;">🔒</div>
                     <h3>Требуется авторизация</h3>
                     <p>Для просмотра билетов войдите в систему</p>
-                    <button id="goToGame" class="btn btn-primary">Войти в игру</button>
+                    <button onclick="window.location.href='/game'" 
+                            style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 12px; margin-top: 15px; cursor: pointer; font-weight: bold; width: 100%;">
+                        Войти в игру
+                    </button>
                 </div>
             `;
-            
-            document.getElementById('goToGame').addEventListener('click', () => {
-                window.location.href = '/game';
-            });
         }
     }
 }
@@ -625,10 +578,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
         console.error('❌ Ошибка загрузки TicketsManager:', error);
         document.body.innerHTML = `
-            <div style="padding: 20px; text-align: center;">
-                <h2>Ошибка загрузки билетов</h2>
+            <div style="padding: 20px; text-align: center; color: white;">
+                <h2 style="color: #ff6b6b;">Ошибка загрузки билетов</h2>
                 <p>${error.message}</p>
-                <button onclick="location.reload()" class="btn">Обновить</button>
+                <button onclick="location.reload()" 
+                        style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 12px; margin-top: 15px; cursor: pointer; font-weight: bold; width: 100%;">
+                    🔄 Обновить
+                </button>
             </div>
         `;
     }
