@@ -1,4 +1,4 @@
-// tickets.js - ОБНОВЛЕННАЯ ВЕРСИЯ ДЛЯ РАБОТЫ С ВАШИМ HTML
+// tickets.js - ОБНОВЛЕННАЯ ВЕРСИЯ С УМНОЙ ЛОГИКОЙ
 class TicketsManager {
     constructor() {
         this.userId = null;
@@ -21,7 +21,6 @@ class TicketsManager {
         this.filters = {
             status: 'all'
         };
-        this.sortBy = 'newest';
         
         this.errorCount = 0;
         this.maxErrors = 3;
@@ -84,19 +83,18 @@ class TicketsManager {
     async loadStats() {
         try {
             console.log('📊 Загрузка статистики...');
-            const response = await fetch(`/api/user/stats?userId=${this.userId}`);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            // Пробуем оба маршрута
+            const stats = await this.tryApiRoutes([
+                `/api/user/stats?userId=${this.userId}`,
+                `/api/tickets/user/${this.userId}/stats`
+            ]);
             
-            const data = await response.json();
-            
-            if (data.success) {
-                this.stats = data.stats;
+            if (stats) {
+                this.stats = stats;
                 console.log('✅ Статистика загружена:', this.stats);
             } else {
-                console.warn('⚠️ API вернул ошибку:', data.error);
+                console.warn('⚠️ Не удалось загрузить статистику');
                 this.createDemoStats();
             }
             
@@ -114,6 +112,27 @@ class TicketsManager {
             this.createDemoStats();
             this.updateStatsUI();
         }
+    }
+    
+    async tryApiRoutes(routes) {
+        for (const route of routes) {
+            try {
+                console.log(`🔍 Пробуем маршрут: ${route}`);
+                const response = await fetch(route);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.stats) {
+                        console.log(`✅ Успех с маршрутом: ${route}`);
+                        return data.stats;
+                    }
+                }
+            } catch (error) {
+                console.log(`❌ Ошибка с маршрутом ${route}:`, error.message);
+                continue;
+            }
+        }
+        return null;
     }
     
     createDemoStats() {
@@ -139,35 +158,16 @@ class TicketsManager {
         try {
             console.log(`📋 Загрузка билетов, страница: ${this.currentPage}`);
             
-            // ПРАВИЛЬНЫЙ URL
-            let url = `/api/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=10`;
+            // Пробуем оба возможных маршрута
+            const ticketsData = await this.tryTicketsRoutes([
+                `/api/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=10`,
+                `/api/tickets/user/tickets?userId=${this.userId}&page=${this.currentPage}&limit=10`
+            ]);
             
-            if (this.filters.status && this.filters.status !== 'all') {
-                url += `&status=${this.filters.status}`;
-            }
-            
-            console.log('🌐 Запрос по URL:', url);
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-                if (response.status === 500) {
-                    this.errorCount++;
-                    console.error('🌐 API сервер недоступен (500 ошибка)');
-                    
-                    if (this.errorCount >= this.maxErrors) {
-                        this.apiUnavailable = true;
-                        throw new Error('API сервер недоступен');
-                    }
-                }
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                const tickets = data.tickets || [];
-                this.totalTickets = data.total || tickets.length;
-                this.hasMore = data.has_more || false;
+            if (ticketsData) {
+                const tickets = ticketsData.tickets || [];
+                this.totalTickets = ticketsData.total || tickets.length;
+                this.hasMore = ticketsData.has_more || ticketsData.pagination?.has_more || false;
                 
                 this.tickets = [...this.tickets, ...tickets];
                 this.errorCount = 0;
@@ -181,7 +181,7 @@ class TicketsManager {
                 }
                 
             } else {
-                console.warn('⚠️ API вернул ошибку:', data.error);
+                console.warn('⚠️ Не удалось загрузить билеты');
                 this.createDemoTickets();
             }
             
@@ -198,6 +198,35 @@ class TicketsManager {
             this.isLoading = false;
             this.showLoading(false);
         }
+    }
+    
+    async tryTicketsRoutes(routes) {
+        for (const route of routes) {
+            try {
+                console.log(`🔍 Пробуем маршрут билетов: ${route}`);
+                
+                // Добавляем фильтр если есть
+                let url = route;
+                if (this.filters.status && this.filters.status !== 'all') {
+                    url += `&status=${this.filters.status}`;
+                }
+                
+                console.log('🌐 Запрос по URL:', url);
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        console.log(`✅ Успех с маршрутом: ${route}`);
+                        return data;
+                    }
+                }
+            } catch (error) {
+                console.log(`❌ Ошибка с маршрутом ${route}:`, error.message);
+                continue;
+            }
+        }
+        return null;
     }
     
     createDemoTickets() {
@@ -257,11 +286,8 @@ class TicketsManager {
             filteredTickets = filteredTickets.filter(t => t.status === this.filters.status);
         }
         
-        if (this.sortBy === 'newest') {
-            filteredTickets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        } else if (this.sortBy === 'oldest') {
-            filteredTickets.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        }
+        // Сортировка по дате (новые первыми)
+        filteredTickets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         
         const ticketsHtml = filteredTickets.map(ticket => this.createTicketHTML(ticket)).join('');
         container.innerHTML = ticketsHtml;
@@ -286,14 +312,14 @@ class TicketsManager {
             year: 'numeric'
         });
         
-        const prizeHtml = ticket.win_amount > 0 
-            ? `<div class="win-amount">🏆 ${ticket.win_amount} Stars</div>`
-            : '';
-        
         const time = new Date(ticket.created_at).toLocaleTimeString('ru-RU', {
             hour: '2-digit',
             minute: '2-digit'
         });
+        
+        const prizeHtml = ticket.win_amount > 0 
+            ? `<div class="win-amount">🏆 ${ticket.win_amount} Stars</div>`
+            : '';
         
         return `
             <div class="ticket-card ${ticket.status}">
@@ -322,7 +348,7 @@ class TicketsManager {
                     ${prizeHtml ? `
                     <div class="info-row">
                         <span class="info-label">Выигрыш:</span>
-                        <span class="info-value">${ticket.win_amount} Stars</span>
+                        <span class="info-value win-amount">🏆 ${ticket.win_amount} Stars</span>
                     </div>
                     ` : ''}
                 </div>
@@ -351,55 +377,27 @@ class TicketsManager {
     }
     
     updateStatsUI() {
-        const statsElement = document.getElementById('statsContainer');
-        if (!statsElement) {
-            console.error('❌ Элемент statsContainer не найден на странице');
+        // Обновляем основные статистические карточки
+        document.getElementById('totalTickets').textContent = this.stats.total_tickets;
+        document.getElementById('wonAmount').textContent = this.stats.total_won;
+        
+        // Добавляем уведомление о демо-режиме если нужно
+        if (this.apiUnavailable) {
+            const notification = document.createElement('div');
+            notification.className = 'notification warning';
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <span class="notification-icon">⚠️</span>
+                    <span class="notification-message">Офлайн режим (демо-данные)</span>
+                </div>
+            `;
+            notification.style.cssText = 'position: relative; top: 0; margin: 10px 0; padding: 10px; background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 8px;';
             
-            // Создаем элемент если его нет
             const statsSection = document.querySelector('.stats-section');
-            if (statsSection) {
-                statsSection.innerHTML = `
-                    <div id="statsContainer">
-                        <div class="stats-cards">
-                            <div class="stat-card">
-                                <div class="stat-value">${this.stats.total_tickets}</div>
-                                <div class="stat-label">Всего билетов</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">${this.stats.total_won}</div>
-                                <div class="stat-label">Выиграно Stars</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+            if (statsSection && !statsSection.querySelector('.notification')) {
+                statsSection.appendChild(notification);
             }
-            return;
         }
-        
-        const stats = this.stats;
-        
-        statsElement.innerHTML = `
-            <div class="stats-cards">
-                <div class="stat-card">
-                    <div class="stat-value">${stats.total_tickets}</div>
-                    <div class="stat-label">Всего билетов</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${stats.total_won}</div>
-                    <div class="stat-label">Выиграно Stars</div>
-                </div>
-            </div>
-            
-            ${this.apiUnavailable ? `
-                <div class="api-warning" style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 10px; padding: 10px; margin-top: 10px; text-align: center;">
-                    <div style="font-size: 14px; color: orange;">⚠️ Офлайн режим (демо-данные)</div>
-                </div>
-            ` : ''}
-        `;
-        
-        // Также обновляем верхние цифры
-        document.getElementById('totalTickets').textContent = stats.total_tickets;
-        document.getElementById('wonAmount').textContent = stats.total_won;
     }
     
     updateFilterCounts() {
@@ -462,30 +460,27 @@ class TicketsManager {
     setupEventListeners() {
         console.log('🎮 Настройка обработчиков событий...');
         
-        // Обработчик для обновления
-        const refreshBtn = document.querySelector('.header .back-btn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', async (e) => {
-                if (e.ctrlKey || e.metaKey) {
-                    // Ctrl+click для обновления
-                    e.preventDefault();
-                    
-                    this.currentPage = 1;
-                    this.hasMore = true;
-                    this.tickets = [];
-                    this.apiUnavailable = false;
-                    this.errorCount = 0;
-                    
-                    const container = document.getElementById('ticketsList');
-                    if (container) {
-                        container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Загрузка билетов...</p></div>';
-                    }
-                    
-                    await this.loadTickets();
-                    await this.loadStats();
-                    
-                    this.showNotification('Билеты обновлены', 'success');
+        // Кнопка обновления (двойной клик на кнопку "назад")
+        const backBtn = document.querySelector('.back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('dblclick', async (e) => {
+                e.preventDefault();
+                
+                this.currentPage = 1;
+                this.hasMore = true;
+                this.tickets = [];
+                this.apiUnavailable = false;
+                this.errorCount = 0;
+                
+                const container = document.getElementById('ticketsList');
+                if (container) {
+                    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Загрузка билетов...</p></div>';
                 }
+                
+                await this.loadTickets();
+                await this.loadStats();
+                
+                this.showNotification('Билеты обновлены', 'success');
             });
         }
         
@@ -501,22 +496,24 @@ class TicketsManager {
     
     showLoading(show) {
         const container = document.getElementById('ticketsList');
-        const loadingEl = document.querySelector('.loading-indicator');
         
-        if (show && !loadingEl && this.tickets.length > 0) {
-            const loader = document.createElement('div');
-            loader.className = 'loading-indicator';
-            loader.innerHTML = '<div class="spinner small"></div><div>Загрузка...</div>';
-            container?.appendChild(loader);
-        } else if (!show && loadingEl) {
-            loadingEl.remove();
+        if (show && this.tickets.length > 0) {
+            const existingLoader = container.querySelector('.loading-indicator');
+            if (!existingLoader) {
+                const loader = document.createElement('div');
+                loader.className = 'loading-indicator';
+                loader.innerHTML = '<div class="spinner small"></div><div>Загрузка...</div>';
+                container.appendChild(loader);
+            }
+        } else if (!show) {
+            const loader = container.querySelector('.loading-indicator');
+            if (loader) {
+                loader.remove();
+            }
         }
     }
     
     showNotification(message, type = 'info') {
-        const oldNotifications = document.querySelectorAll('.notification');
-        oldNotifications.forEach(n => n.remove());
-        
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.innerHTML = `
@@ -524,20 +521,15 @@ class TicketsManager {
                 <span class="notification-icon">${this.getNotificationIcon(type)}</span>
                 <span class="notification-message">${message}</span>
             </div>
-            <button class="close-notification">&times;</button>
         `;
         
         document.body.appendChild(notification);
-        
-        notification.querySelector('.close-notification').addEventListener('click', () => {
-            notification.remove();
-        });
         
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
             }
-        }, 4000);
+        }, 3000);
     }
     
     getNotificationIcon(type) {
